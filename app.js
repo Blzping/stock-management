@@ -193,7 +193,7 @@ function stockView(){
 <section class="panel">\
 <div class="panel-head">\
 <h2>ตรวจสอบสต็อก</h2>\
-<input id="search" class="input" placeholder="ค้นหาขนาด ยี่ห้อ รุ่น หรือตำแหน่ง" value="${esc(state.query)}">\
+<input id="search" class="input" placeholder="ค้นหา ยี่ห้อ ขนาด รุ่น หรือตำแหน่ง" value="${esc(state.query)}">\
 </div>${productTable(filteredProducts(),false)}</section>`
 }
 
@@ -204,7 +204,7 @@ function productView(){
 <button class="btn primary" data-modal="product">+ เพิ่มยาง</button>\
 </div>\
 <div class="toolbar" style="margin-bottom:10px">\
-<input id="search" class="input" placeholder="ค้นหาขนาด ยี่ห้อ รุ่น" value="${esc(state.query)}">\
+<input id="search" class="input" placeholder="ค้นหา ยี่ห้อ ขนาด รุ่น" value="${esc(state.query)}">\
 </div>${productTable(filteredProducts(),true)}</section>`
 }
 
@@ -329,7 +329,7 @@ function catalogField(label, name, values, disabled = false){
   return `<div class="field">
 <label for="catalog-${name}">${label}</label>
 <select id="catalog-${name}" class="input" data-catalog="${name}" name="${name}" required ${disabled?'disabled':''}>
-<option value="">เลือก${label}</option>
+<option value="" disabled selected hidden>เลือก${label}</option>
 ${values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}
 </select>
 <button class="link catalog-add" type="button" data-catalog-add="${name}">+ เพิ่ม${label}ใหม่</button>
@@ -350,7 +350,7 @@ function updateCatalogField(form, name, values, disabled = false){
   const input=form.querySelector(`[data-catalog-new="${name}"]`);
   const addButton=form.querySelector(`[data-catalog-add="${name}"]`);
   const label=name==='brand'?'ยี่ห้อ':name==='model'?'รุ่นยาง':'ขนาดยาง';
-  select.innerHTML=`<option value="">เลือก${label}</option>${values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}`;
+  select.innerHTML=`<option value="" disabled selected hidden>เลือก${label}</option>${values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}`;
   select.hidden=false;
   select.dataset.disabled=String(disabled);
   select.disabled=disabled;
@@ -430,9 +430,9 @@ function modalHtml(){
     const p=m.id?state.products.find(x=>x.id===m.id):{};
     title=m.id?'แก้ไขข้อมูลยาง':'เพิ่มยาง';
     const tireFields=m.id
-      ? `${field('ยี่ห้อ','brand',p.brand,'text','required')}${field('รุ่น / ลายดอก','model',p.model,'text','required')}${field('ขนาดยาง','size',p.size,'text','required placeholder="205/55R16"')}`
+      ? `${field('ยี่ห้อ','brand',p.brand,'text','required')}${field('รุ่น / ลายดอก','model',p.model,'text','required')}${field('ขนาดยาง','size',p.size,'text','required')}`
       : `${catalogField('ยี่ห้อ','brand',uniqueValues(state.products,product=>product.brand))}${catalogField('รุ่นยาง','model',[],true)}${catalogField('ขนาดยาง','size',[],true)}`;
-    body=`<div class="form-grid">${tireFields}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost||0,'number','min="0" step="0.01" required')}${field('ราคาขาย (บาท)','price',p.price||0,'number','min="0" step="0.01" required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty||0,'number','min="0" step="1" required')}</div>`
+    body=`<div class="form-grid">${tireFields}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost,'number','min="0" step="1"', 'required')}${field('ราคาขาย (บาท)','price',p.price,'number','min="0" step="1"' , 'required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty,'number','min="0" step="1" ', 'required')}</div>`
   }
   else if(m.type==='supplier'){
     const s=m.id?state.suppliers.find(x=>x.id===m.id):{};
