@@ -305,7 +305,7 @@ tbody tr:last-child td{
     display:grid;
     place-items:center;
     padding:16px;
-    z-index:10
+    z-index:100
 }
 
 .modal{
@@ -368,4 +368,21 @@ tbody tr:last-child td{
    .nav{
       text-decoration:none
    }
+}
+/* Keep the page title and stock summary visible while scrolling. */
+.main > .top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    padding: 12px 0;
+    background: #f2f5f9;
+}
+
+.main > .cards {
+    position: sticky;
+    top: 76px;
+    z-index: 19;
+    padding: 8px 0;
+    margin-top: -8px;
+    background: #f2f5f9;
 }
