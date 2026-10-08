@@ -213,8 +213,9 @@ function productTable(rows,edit){
 <table>\
 <thead>\
 <tr>\
-<th>ยาง</th>\
+<th>ยี่ห้อ</th>\
 <th>ขนาด</th>\
+<th>รุ่นยาง</th>\
 <th>ตำแหน่ง</th>\
 <th>คงเหลือ</th>\
 <th>ขั้นต่ำ</th>\
@@ -223,9 +224,10 @@ function productTable(rows,edit){
 </thead>\
 <tbody>${rows.map(p=>`<tr>\
 <td>\
-<strong>${esc(p.brand)} ${esc(p.model)}</strong>\
+<strong>${esc(p.brand)}</strong>\
 </td>\
 <td>${esc(p.size)}</td>\
+<td>${esc(p.model)}</td>\
 <td>${esc(p.location||'—')}</td>\
 <td>\
 <span class="tag ${p.stock_qty<=p.min_qty?'low':''}">${p.stock_qty} เส้น</span>\
@@ -290,7 +292,9 @@ function historyView(){
 <tr>\
 <th>วันที่</th>\
 <th>ประเภท</th>\
-<th>ยาง</th>\
+<th>ยี่ห้อ</th>\
+<th>ขนาด</th>\
+<th>รุ่นยาง</th>\
 <th>จำนวน</th>\
 <th>จาก / ให้</th>\
 <th>ราคา/เส้น</th>\
@@ -302,7 +306,9 @@ function historyView(){
 <td>\
 <span class="tag ${m.kind}">${m.kind==='in'?'รับเข้า':'ขายออก'}</span>\
 </td>\
-<td>${esc(p?tire(p):'—')}</td>\
+<td>${esc(p?.brand||'—')}</td>\
+<td>${esc(p?.size||'—')}</td>\
+<td>${esc(p?.model||'—')}</td>\
 <td>${m.qty} เส้น</td>\
 <td>${esc(m.kind==='in'?s?.name:m.customer_name)}</td>\
 <td>฿${money(m.unit_price)}</td>\
