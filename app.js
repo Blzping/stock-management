@@ -325,13 +325,114 @@ function field(label,name,value='',type='text',extra=''){
 </div>`
 }
 
+function catalogField(label, name, values, disabled = false){
+  return `<div class="field">
+<label for="catalog-${name}">${label}</label>
+<select id="catalog-${name}" class="input" data-catalog="${name}" name="${name}" required ${disabled?'disabled':''}>
+<option value="">เลือก${label}</option>
+${values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}
+</select>
+<button class="link catalog-add" type="button" data-catalog-add="${name}">+ เพิ่ม${label}ใหม่</button>
+<div class="catalog-new" data-catalog-new-row="${name}" hidden>
+<input class="input" data-catalog-new="${name}" name="${name}_new" placeholder="พิมพ์${label}ใหม่" disabled>
+<button class="link" type="button" data-catalog-cancel="${name}">เลือกจากรายการ</button>
+</div>
+</div>`
+}
+
+function uniqueValues(products, selector){
+  return [...new Set(products.map(selector).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'))
+}
+
+function updateCatalogField(form, name, values, disabled = false){
+  const select=form.querySelector(`[data-catalog="${name}"]`);
+  const newRow=form.querySelector(`[data-catalog-new-row="${name}"]`);
+  const input=form.querySelector(`[data-catalog-new="${name}"]`);
+  const addButton=form.querySelector(`[data-catalog-add="${name}"]`);
+  const label=name==='brand'?'ยี่ห้อ':name==='model'?'รุ่นยาง':'ขนาดยาง';
+  select.innerHTML=`<option value="">เลือก${label}</option>${values.map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}`;
+  select.hidden=false;
+  select.dataset.disabled=String(disabled);
+  select.disabled=disabled;
+  select.required=!disabled;
+  newRow.hidden=true;
+  input.required=false;
+  input.disabled=true;
+  input.value='';
+  addButton.hidden=false;
+}
+
+function setCatalogNewMode(form, name, enabled){
+  const select=form.querySelector(`[data-catalog="${name}"]`);
+  const newRow=form.querySelector(`[data-catalog-new-row="${name}"]`);
+  const input=form.querySelector(`[data-catalog-new="${name}"]`);
+  const addButton=form.querySelector(`[data-catalog-add="${name}"]`);
+  select.disabled=enabled||select.dataset.disabled==='true';
+  select.hidden=enabled;
+  select.required=!select.disabled&&!enabled;
+  newRow.hidden=!enabled;
+  input.required=enabled;
+  input.disabled=!enabled;
+  addButton.hidden=enabled;
+  if(enabled)input.focus();
+  else input.value='';
+}
+
+function missingCatalogValue(form){
+  for(const [name,label] of [['brand','ยี่ห้อ'],['model','รุ่นยาง'],['size','ขนาดยาง']]){
+    const newRow=form.querySelector(`[data-catalog-new-row="${name}"]`);
+    const input=form.querySelector(`[data-catalog-new="${name}"]`);
+    const select=form.querySelector(`[data-catalog="${name}"]`);
+    if(newRow.hidden?!select.value:!input.value.trim())return {name,label};
+  }
+  return null;
+}
+
+function updateModelChoices(form){
+  const brand=form.elements.brand.value;
+  const brandIsNew=!form.querySelector('[data-catalog-new-row="brand"]').hidden;
+  if(brandIsNew){
+    updateCatalogField(form,'model',[],true);
+    updateCatalogField(form,'size',[],true);
+    return;
+  }
+  if(!brand){
+    updateCatalogField(form,'model',[],true);
+    updateCatalogField(form,'size',[],true);
+    return;
+  }
+  const models=uniqueValues(state.products.filter(product=>product.brand===brand),product=>product.model);
+  updateCatalogField(form,'model',models,models.length===0);
+  updateSizeChoices(form);
+}
+
+function updateSizeChoices(form){
+  const brand=form.elements.brand.value;
+  const model=form.elements.model.value;
+  const brandIsNew=!form.querySelector('[data-catalog-new-row="brand"]').hidden;
+  const modelIsNew=!form.querySelector('[data-catalog-new-row="model"]').hidden;
+  if(brandIsNew||modelIsNew){
+    updateCatalogField(form,'size',[],true);
+    return;
+  }
+  if(!brand||!model){
+    updateCatalogField(form,'size',[],true);
+    return;
+  }
+  const sizes=uniqueValues(state.products.filter(product=>product.brand===brand&&product.model===model),product=>product.size);
+  updateCatalogField(form,'size',sizes,sizes.length===0);
+}
+
 function modalHtml(){
   const m=state.modal;
   let title='',body='';
   if(m.type==='product'){
     const p=m.id?state.products.find(x=>x.id===m.id):{};
     title=m.id?'แก้ไขข้อมูลยาง':'เพิ่มยาง';
-    body=`<div class="form-grid">${field('ยี่ห้อ','brand',p.brand,'text','required')}${field('รุ่น / ลายดอก','model',p.model,'text','required')}${field('ขนาดยาง','size',p.size,'text','required placeholder="205/55R16"')}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost||0,'number','min="0" step="0.01" required')}${field('ราคาขาย (บาท)','price',p.price||0,'number','min="0" step="0.01" required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty||0,'number','min="0" step="1" required')}</div>`
+    const tireFields=m.id
+      ? `${field('ยี่ห้อ','brand',p.brand,'text','required')}${field('รุ่น / ลายดอก','model',p.model,'text','required')}${field('ขนาดยาง','size',p.size,'text','required placeholder="205/55R16"')}`
+      : `${catalogField('ยี่ห้อ','brand',uniqueValues(state.products,product=>product.brand))}${catalogField('รุ่นยาง','model',[],true)}${catalogField('ขนาดยาง','size',[],true)}`;
+    body=`<div class="form-grid">${tireFields}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost||0,'number','min="0" step="0.01" required')}${field('ราคาขาย (บาท)','price',p.price||0,'number','min="0" step="0.01" required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty||0,'number','min="0" step="1" required')}</div>`
   }
   else if(m.type==='supplier'){
     const s=m.id?state.suppliers.find(x=>x.id===m.id):{};
@@ -407,6 +508,26 @@ function bind(){
       if(e.target.id==='modal-back')closeModal()
     };
     document.getElementById('data-form').onsubmit=saveForm
+    if(state.modal.type==='product'&&!state.modal.id){
+      const form=document.getElementById('data-form');
+      form.querySelectorAll('[data-catalog]').forEach(select=>select.onchange=()=>{
+        if(select.dataset.catalog==='brand')updateModelChoices(form);
+        if(select.dataset.catalog==='model')updateSizeChoices(form);
+      });
+      form.querySelectorAll('[data-catalog-add]').forEach(button=>button.onclick=()=>{
+        const name=button.dataset.catalogAdd;
+        setCatalogNewMode(form,name,true);
+        if(name==='brand')updateModelChoices(form);
+        if(name==='model')updateSizeChoices(form);
+      });
+      form.querySelectorAll('[data-catalog-cancel]').forEach(button=>button.onclick=()=>{
+        const name=button.dataset.catalogCancel;
+        setCatalogNewMode(form,name,false);
+        if(name==='brand')updateModelChoices(form);
+        if(name==='model')updateSizeChoices(form);
+      });
+      updateModelChoices(form);
+    }
   }
 }
 
@@ -417,12 +538,23 @@ function closeModal(){
 
 async function saveForm(e){
   e.preventDefault();
+  const d=formData(e.target),m=state.modal;
+  if(m.type==='product'&&!m.id){
+    const missing=missingCatalogValue(e.target);
+    if(missing){
+      const old=e.target.querySelector('.error');
+      if(old)old.remove();
+      e.target.insertAdjacentHTML('afterbegin',`<div class="error">เลือก${missing.label} หรือกด “เพิ่ม${missing.label}ใหม่” ก่อนบันทึก</div>`);
+      e.target.querySelector(`[data-catalog-add="${missing.name}"]`).focus();
+      return;
+    }
+  }
   const button=e.target.querySelector('button[type=submit],button.btn.primary');
   button.disabled=true;
-  const d=formData(e.target),m=state.modal;
   try{
     if(m.type==='product'){
-      const data={brand:d.brand.trim(),model:d.model.trim(),size:d.size.trim().toUpperCase(),location:d.location.trim()||null,cost:Number(d.cost),price:Number(d.price),min_qty:Number(d.min_qty)};
+      const catalogValue=name=>d[`${name}_new`]!==undefined?d[`${name}_new`].trim():d[name].trim();
+      const data={brand:catalogValue('brand'),model:catalogValue('model'),size:catalogValue('size').toUpperCase(),location:d.location.trim()||null,cost:Number(d.cost),price:Number(d.price),min_qty:Number(d.min_qty)};
       await api(`/rest/v1/products${m.id?`?id=eq.${m.id}`:''}`,{method:m.id?'PATCH':'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(data)})
     }
     else if(m.type==='supplier'){
