@@ -280,6 +280,7 @@ tbody tr:last-child td{
 
 .field{
     display:grid;
+    align-content:start;
     gap:5px
 }
 
@@ -363,7 +364,7 @@ tbody tr:last-child td{
       padding:12px
    }
    .brand{
-      margin:0 0 1０ px 
+      margin:0 0 10px 
    }
    .nav{
       text-decoration:none

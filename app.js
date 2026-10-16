@@ -90,7 +90,7 @@ async function load(){
 
 function logout(){
   sessionStorage.removeItem('tire_session');
-  Object.assign(state,{token:null,refresh:null,user:null,products:[],suppliers:[],movements:[],error:''});
+  Object.assign(state,{token:null,refresh:null,user:null,products:[],suppliers:[],movements:[],error:'',modal:null,query:'',message:'',page:'stock'});
   render()
 }
 
@@ -432,7 +432,7 @@ function modalHtml(){
     const tireFields=m.id
       ? `${field('ยี่ห้อ','brand',p.brand,'text','required')}${field('รุ่น / ลายดอก','model',p.model,'text','required')}${field('ขนาดยาง','size',p.size,'text','required')}`
       : `${catalogField('ยี่ห้อ','brand',uniqueValues(state.products,product=>product.brand))}${catalogField('รุ่นยาง','model',[],true)}${catalogField('ขนาดยาง','size',[],true)}`;
-    body=`<div class="form-grid">${tireFields}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost,'number','min="0" step="1"', 'required')}${field('ราคาขาย (บาท)','price',p.price,'number','min="0" step="1"' , 'required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty,'number','min="0" step="1" ', 'required')}</div>`
+    body=`<div class="form-grid">${tireFields}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost,'number','min="0" step="0.01" required')}${field('ราคาขาย (บาท)','price',p.price,'number','min="0" step="0.01" required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty,'number','min="0" step="1" required')}</div>`
   }
   else if(m.type==='supplier'){
     const s=m.id?state.suppliers.find(x=>x.id===m.id):{};
