@@ -13,16 +13,38 @@ const state = {
   query: '',
   modal: null,
   message: '',
-  error: ''
+  error: '',
+  dataReady: false
 };
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = v => new Intl.NumberFormat('th-TH',{maximumFractionDigits:2}).format(Number(v)||0);
 const date = v => new Date(v).toLocaleString('th-TH',{dateStyle:'short',timeStyle:'short'});
 const tire = p => `${p.brand} ${p.model} · ${p.size}`;
 const formData = f => Object.fromEntries(new FormData(f).entries());
+const isSessionError = e =>
+  e?.status === 401 ||
+  ['refresh_token_not_found','refresh_token_already_used','bad_jwt','invalid_grant'].includes(e?.code) ||
+  /JWT expired|invalid JWT|invalid refresh token/i.test(e?.message || '');
 const errorText = e => {
-  const m = e.message || String(e);
-  return /relation .* does not exist|Could not find the table|schema cache/i.test(m) ? 'ยังไม่พบตารางใน Supabase กรุณาติดตั้ง schema.sql ก่อนใช้งาน' : m;
+  const message = String(e?.message || e || '');
+  const code = String(e?.code || '').toLowerCase();
+  const status = e?.status;
+  if(/relation .* does not exist|could not find the table|schema cache|could not find the function/i.test(message) || code === 'pgrst202')
+    return 'ยังไม่พบตารางหรือฟังก์ชันใน Supabase กรุณาตรวจสอบการติดตั้ง schema.sql';
+  if(code === 'invalid_credentials' || (e?.path?.includes('grant_type=password') && /invalid_grant|invalid login credentials/i.test(code + ' ' + message)))
+    return 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+  if(code === 'email_not_confirmed') return 'บัญชีนี้ยังไม่ได้ยืนยันอีเมล';
+  if(code === 'over_request_rate_limit' || status === 429) return 'มีการลองใช้งานหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่';
+  if(code === '23505') return 'ข้อมูลนี้มีอยู่ในระบบแล้ว กรุณาตรวจสอบก่อนบันทึก';
+  if(code === '23503') return 'ไม่พบข้อมูลที่เลือก กรุณาโหลดข้อมูลใหม่แล้วลองอีกครั้ง';
+  if(/not enough stock/i.test(message)) return 'ยางคงเหลือไม่พอ กรุณาโหลดข้อมูลใหม่แล้วตรวจสอบจำนวน';
+  if(/product not found/i.test(message)) return 'ไม่พบยางรายการนี้ กรุณาโหลดข้อมูลใหม่';
+  if(/supplier is required|customer name is required/i.test(message)) return 'กรุณาระบุซัพพลายเออร์หรือลูกค้าให้ครบ';
+  if(isSessionError(e)) return 'เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง';
+  if(status === 403 || code === '42501') return 'บัญชีนี้ไม่มีสิทธิ์ทำรายการนี้';
+  if(status >= 500 || /failed to fetch|fetch failed|networkerror|unexpected token/i.test(message) || e?.name === 'SyntaxError')
+    return 'เชื่อมต่อระบบไม่ได้ในขณะนี้ กรุณาลองใหม่อีกครั้ง';
+  return 'ทำรายการไม่สำเร็จ กรุณาลองใหม่อีกครั้ง';
 };
 async function api(path, options = {}, allowRetry = true) {
   const headers = {
@@ -35,13 +57,17 @@ async function api(path, options = {}, allowRetry = true) {
   if (!res.ok) {
     let data = {};
     try { data = await res.json(); } catch {}
-    const message = data.message || data.error_description || data.error || `HTTP ${res.status}`;
+    const message = data.message || data.error_description || data.msg || data.error || `HTTP ${res.status}`;
     if (allowRetry && state.token && state.refresh && !path.startsWith('/auth/') &&
         (res.status === 401 || /JWT expired|invalid JWT/i.test(message))) {
       await refreshSession();
       return api(path, options, false);
     }
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = res.status;
+    error.code = data.error_code || (typeof data.code === 'string' ? data.code : '') || data.error;
+    error.path = path;
+    throw error;
   }
   if (res.status === 204) return null;
   const txt = await res.text();
@@ -73,30 +99,33 @@ async function refreshSession(){
 }
 
 async function load(){
-  try {
+  try{
     const [products,suppliers,movements]=await Promise.all([
       api('/rest/v1/products?select=*&order=brand.asc,model.asc'),
       api('/rest/v1/suppliers?select=*&order=name.asc'),
       api('/rest/v1/movements?select=*&order=created_at.desc&limit=1000')
     ]);
-    Object.assign(state,{products,suppliers,movements,error:''});
+    Object.assign(state,{products,suppliers,movements,error:'',dataReady:true});
     render();
+    return true;
   }
   catch(e){
-    if(/JWT expired|invalid JWT|invalid refresh token|invalid_grant/i.test(e.message)){
+    if(isSessionError(e)){
       logout();
       state.error='เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง';
       render();
-      return;
+      return false;
     }
     state.error=errorText(e);
-    render()
+    state.message='';
+    render();
+    return false;
   }
 }
 
 function logout(){
   sessionStorage.removeItem('tire_session');
-  Object.assign(state,{token:null,refresh:null,user:null,products:[],suppliers:[],movements:[],error:'',modal:null,query:'',message:'',page:'stock'});
+  Object.assign(state,{token:null,refresh:null,user:null,products:[],suppliers:[],movements:[],error:'',dataReady:false,modal:null,query:'',message:'',page:'stock'});
   render()
 }
 
@@ -105,7 +134,7 @@ function loginView(){
 <div class="brand">\
 <span class="mark">◉</span> คลังยาง</div>\
 <h1>เข้าสู่ระบบ</h1>\
-<p class="muted">สำหรับพนักงานภายในร้าน</p>${state.error?`<div class="error">${esc(state.error)}</div>`:''}<form id="login-form">\
+<p class="muted">สำหรับพนักงานภายในร้าน</p><div id="login-error" class="error" role="alert" ${state.error?'':'hidden'}>${esc(state.error)}</div><form id="login-form">\
 <div class="field">\
 <label>อีเมล</label>\
 <input class="input" name="email" type="email" required autocomplete="username">\
@@ -121,18 +150,26 @@ function loginView(){
   document.getElementById('login-form').onsubmit=async e=>{
     e.preventDefault();
     state.error='';
-    const b=e.target.querySelector('button');
-    b.disabled=true;
+    const errorBox=document.getElementById('login-error');
+    errorBox.hidden=true;
+    errorBox.textContent='';
+    const button=e.target.querySelector('button');
+    button.disabled=true;
+    button.textContent='กำลังเข้าสู่ระบบ...';
     try{
-      const d=formData(e.target);
-      await signIn(d.email,d.password)
+      const data=formData(e.target);
+      await signIn(data.email,data.password);
     }
     catch(err){
       state.error=errorText(err);
-      render()
+      if(errorBox.isConnected){
+        errorBox.textContent=state.error;
+        errorBox.hidden=false;
+      }else render();
     }
     finally{
-      b.disabled=false
+      button.disabled=false;
+      button.textContent='เข้าสู่ระบบ';
     }
   }
 }
@@ -150,6 +187,22 @@ function render(){
   if(!state.token){
     loginView();
     return
+  }
+  if(!state.dataReady || state.error){
+    root.innerHTML=`<div class="panel login" id="load-panel">
+      <div class="brand"><span class="mark">◉</span> คลังยาง</div>
+      <h1>${state.error?'โหลดข้อมูลไม่สำเร็จ':'กำลังโหลดข้อมูล...'}</h1>
+      ${state.error?`<div class="error" role="alert">${esc(state.error)}</div><button class="btn primary" id="retry-load">ลองโหลดใหม่</button>`:'<p class="muted">กรุณารอสักครู่</p>'}
+      <button class="link" id="logout" type="button">ออกจากระบบ</button>
+    </div>`;
+    document.getElementById('logout').onclick=logout;
+    const retry=document.getElementById('retry-load');
+    if(retry)retry.onclick=async()=>{
+      retry.disabled=true;
+      retry.textContent='กำลังโหลด...';
+      await load();
+    };
+    return;
   }
   root.innerHTML=`<div class="shell">\
 <aside class="side">\
@@ -539,7 +592,7 @@ function bind(){
 
 function showFormError(form, message, focusTarget){
   form.querySelector('.error')?.remove();
-  form.insertAdjacentHTML('afterbegin',`<div class="error">${esc(message)}</div>`);
+  form.insertAdjacentHTML('afterbegin',`<div class="error" role="alert">${esc(message)}</div>`);
   focusTarget?.focus();
 }
 
@@ -601,14 +654,25 @@ async function saveForm(e){
       await api('/rest/v1/rpc/record_movement',{method:'POST',body:JSON.stringify(data)})
     }
     state.modal=null;
-    state.message='บันทึกข้อมูลเรียบร้อย';
-    await load()
+    const loaded=await load();
+    if(loaded){
+      state.message='บันทึกข้อมูลเรียบร้อย';
+      render();
+    }else if(state.token){
+      state.error='บันทึกข้อมูลแล้ว แต่โหลดข้อมูลล่าสุดไม่สำเร็จ กรุณาลองโหลดใหม่';
+      render();
+    }
   }
   catch(err){
-    const old=e.target.querySelector('.error');
-    if(old)old.remove();
-    e.target.insertAdjacentHTML('afterbegin',`<div class="error">${esc(errorText(err))}</div>`);
-    button.disabled=false
+    if(isSessionError(err)){
+      logout();
+      state.error='เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง';
+      render();
+      return;
+    }
+    showFormError(e.target,errorText(err));
+    button.disabled=false;
+
   }
 }
 try{
