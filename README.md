@@ -9,11 +9,11 @@
 3. ปิดการสมัครบัญชีเองที่ **Authentication → Providers → Email → Allow new users to sign up** เพื่อให้เฉพาะบัญชีที่ผู้ดูแลเพิ่มเข้าใช้งานได้
 4. เปิดเว็บแล้วเข้าสู่ระบบด้วยบัญชีพนักงาน
 
-ระบบตั้งค่า Project URL และ anon key ที่ได้รับไว้ใน `dist/config.js` แล้ว ค่า anon key ใช้ในเว็บได้โดยออกแบบให้ฐานข้อมูลเปิดสิทธิ์ตาม RLS เฉพาะบัญชีที่ล็อกอิน ส่วน `service_role` key ห้ามใส่ในเว็บ
+ระบบตั้งค่า Project URL และ anon key ที่ได้รับไว้ใน `config.js` แล้ว ค่า anon key ใช้ในเว็บได้โดยออกแบบให้ฐานข้อมูลเปิดสิทธิ์ตาม RLS เฉพาะบัญชีที่ล็อกอิน ส่วน `service_role` key ห้ามใส่ในเว็บ
 
 ## เปิดใช้งานไฟล์เว็บ
 
-นำไฟล์ทั้งหมดใน `dist` ขึ้น static hosting ที่รองรับ HTTPS หรือเปิดผ่าน local web server เพื่อทดสอบ อย่าเปิด `index.html` ด้วย `file://` โดยตรง
+นำ `index.html`, `style.css`, `app.js` และ `config.js` ขึ้น static hosting ที่รองรับ HTTPS หรือเปิดผ่าน local web server เพื่อทดสอบ อย่าเปิด `index.html` ด้วย `file://` โดยตรง
 
 ## ลำดับใช้งาน
 

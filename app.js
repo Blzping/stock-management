@@ -1,6 +1,7 @@
 const root = document.getElementById('app');
 const base = window.SUPABASE_URL;
 const key = window.SUPABASE_ANON_KEY;
+let refreshPromise = null;
 const state = {
   token: null,
   refresh: null,
@@ -23,7 +24,7 @@ const errorText = e => {
   const m = e.message || String(e);
   return /relation .* does not exist|Could not find the table|schema cache/i.test(m) ? 'ยังไม่พบตารางใน Supabase กรุณาติดตั้ง schema.sql ก่อนใช้งาน' : m;
 };
-async function api(path, options={}) {
+async function api(path, options = {}, allowRetry = true) {
   const headers = {
     apikey: key,
     Authorization: `Bearer ${state.token || key}`,
@@ -33,10 +34,14 @@ async function api(path, options={}) {
   const res = await fetch(`${base}${path}`, { ...options, headers });
   if (!res.ok) {
     let data = {};
-    try {
-      data = await res.json();
-    } catch {}
-    throw new Error(data.message || data.error_description || data.error || `HTTP ${res.status}`);
+    try { data = await res.json(); } catch {}
+    const message = data.message || data.error_description || data.error || `HTTP ${res.status}`;
+    if (allowRetry && state.token && state.refresh && !path.startsWith('/auth/') &&
+        (res.status === 401 || /JWT expired|invalid JWT/i.test(message))) {
+      await refreshSession();
+      return api(path, options, false);
+    }
+    throw new Error(message);
   }
   if (res.status === 204) return null;
   const txt = await res.text();
@@ -58,8 +63,13 @@ function saveSession(data){
 
 async function refreshSession(){
   if(!state.refresh)throw Error('กรุณาเข้าสู่ระบบอีกครั้ง');
-  const data=await api('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:state.refresh})});
-  saveSession(data)
+  if(!refreshPromise){
+    refreshPromise=(async()=>{
+      const data=await api('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:state.refresh})});
+      saveSession(data);
+    })().finally(()=>{ refreshPromise=null; });
+  }
+  return refreshPromise;
 }
 
 async function load(){
@@ -73,15 +83,11 @@ async function load(){
     render();
   }
   catch(e){
-    if(/JWT expired|invalid JWT/i.test(e.message)){
-      try{
-        await refreshSession();
-        return load()
-      }
-      catch {
-        logout();
-        return;
-      }
+    if(/JWT expired|invalid JWT|invalid refresh token|invalid_grant/i.test(e.message)){
+      logout();
+      state.error='เซสชันหมดอายุ กรุณาเข้าสู่ระบบอีกครั้ง';
+      render();
+      return;
     }
     state.error=errorText(e);
     render()
@@ -531,6 +537,12 @@ function bind(){
   }
 }
 
+function showFormError(form, message, focusTarget){
+  form.querySelector('.error')?.remove();
+  form.insertAdjacentHTML('afterbegin',`<div class="error">${esc(message)}</div>`);
+  focusTarget?.focus();
+}
+
 function closeModal(){
   state.modal=null;
   render()
@@ -542,10 +554,33 @@ async function saveForm(e){
   if(m.type==='product'&&!m.id){
     const missing=missingCatalogValue(e.target);
     if(missing){
-      const old=e.target.querySelector('.error');
-      if(old)old.remove();
-      e.target.insertAdjacentHTML('afterbegin',`<div class="error">เลือก${missing.label} หรือกด “เพิ่ม${missing.label}ใหม่” ก่อนบันทึก</div>`);
-      e.target.querySelector(`[data-catalog-add="${missing.name}"]`).focus();
+      const newRow=e.target.querySelector(`[data-catalog-new-row="${missing.name}"]`);
+      const focus=newRow.hidden
+        ? e.target.querySelector(`[data-catalog-add="${missing.name}"]`)
+        : e.target.querySelector(`[data-catalog-new="${missing.name}"]`);
+      showFormError(e.target,`กรุณาระบุ${missing.label}ก่อนบันทึก`,focus);
+      return;
+    }
+  }
+  if(m.type==='product'&&m.id){
+    const empty=['brand','model','size'].find(name=>!d[name].trim());
+    if(empty){
+      showFormError(e.target,'กรุณากรอกข้อมูลยางให้ครบ',e.target.elements[empty]);
+      return;
+    }
+  }
+  if(m.type==='supplier'&&!d.name.trim()){
+    showFormError(e.target,'กรุณากรอกชื่อซัพพลายเออร์',e.target.elements.name);
+    return;
+  }
+  if(m.type==='out'){
+    if(!d.customer_name.trim()){
+      showFormError(e.target,'กรุณากรอกชื่อลูกค้า',e.target.elements.customer_name);
+      return;
+    }
+    const product=state.products.find(p=>p.id===Number(d.product_id));
+    if(product&&Number(d.qty)>product.stock_qty){
+      showFormError(e.target,`ยางคงเหลือ ${product.stock_qty} เส้น ไม่พอสำหรับจำนวนที่ขาย`,e.target.elements.qty);
       return;
     }
   }
