@@ -176,7 +176,7 @@ function loginView(){
 
 function filteredProducts(){
   const q=state.query.toLowerCase();
-  return state.products.filter(p=>`${p.brand} ${p.model} ${p.size} ${p.location||''}`.toLowerCase().includes(q))
+  return state.products.filter(p=>`${p.brand} ${p.model} ${p.size}`.toLowerCase().includes(q))
 }
 
 function pageTitle(){
@@ -252,7 +252,7 @@ function stockView(){
 <section class="panel">\
 <div class="panel-head">\
 <h2>ตรวจสอบสต็อก</h2>\
-<input id="search" class="input" placeholder="ค้นหา ยี่ห้อ ขนาด รุ่น หรือตำแหน่ง" value="${esc(state.query)}">\
+<input id="search" class="input" placeholder="ค้นหา ยี่ห้อ ขนาด หรือรุ่น" value="${esc(state.query)}">\
 </div>${productTable(filteredProducts(),false)}</section>`
 }
 
@@ -275,7 +275,6 @@ function productTable(rows,edit){
 <th>ยี่ห้อ</th>\
 <th>ขนาด</th>\
 <th>รุ่นยาง</th>\
-<th>ตำแหน่ง</th>\
 <th>คงเหลือ</th>\
 <th>ขั้นต่ำ</th>\
 <th>ราคาขาย</th>${edit?'<th>\
@@ -287,7 +286,6 @@ function productTable(rows,edit){
 </td>\
 <td>${esc(p.size)}</td>\
 <td>${esc(p.model)}</td>\
-<td>${esc(p.location||'—')}</td>\
 <td>\
 <span class="tag ${p.stock_qty<=p.min_qty?'low':''}">${p.stock_qty} เส้น</span>\
 </td>\
@@ -491,7 +489,7 @@ function modalHtml(){
     const tireFields=m.id
       ? `${field('ยี่ห้อ','brand',p.brand,'text','required')}${field('รุ่น / ลายดอก','model',p.model,'text','required')}${field('ขนาดยาง','size',p.size,'text','required')}`
       : `${catalogField('ยี่ห้อ','brand',uniqueValues(state.products,product=>product.brand))}${catalogField('รุ่นยาง','model',[],true)}${catalogField('ขนาดยาง','size',[],true)}`;
-    body=`<div class="form-grid">${tireFields}${field('ตำแหน่งจัดเก็บ','location',p.location)}${field('ราคาทุน (บาท)','cost',p.cost,'number','min="0" step="0.01" required')}${field('ราคาขาย (บาท)','price',p.price,'number','min="0" step="0.01" required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty,'number','min="0" step="1" required')}</div>`
+    body=`<div class="form-grid">${tireFields}${field('ราคาทุน (บาท)','cost',p.cost,'number','min="0" step="0.01" required')}${field('ราคาขาย (บาท)','price',p.price,'number','min="0" step="0.01" required')}${field('จำนวนขั้นต่ำ','min_qty',p.min_qty,'number','min="0" step="1" required')}</div>`
   }
   else if(m.type==='supplier'){
     const s=m.id?state.suppliers.find(x=>x.id===m.id):{};
@@ -642,7 +640,7 @@ async function saveForm(e){
   try{
     if(m.type==='product'){
       const catalogValue=name=>d[`${name}_new`]!==undefined?d[`${name}_new`].trim():d[name].trim();
-      const data={brand:catalogValue('brand'),model:catalogValue('model'),size:catalogValue('size').toUpperCase(),location:d.location.trim()||null,cost:Number(d.cost),price:Number(d.price),min_qty:Number(d.min_qty)};
+      const data={brand:catalogValue('brand'),model:catalogValue('model'),size:catalogValue('size').toUpperCase(),cost:Number(d.cost),price:Number(d.price),min_qty:Number(d.min_qty)};
       await api(`/rest/v1/products${m.id?`?id=eq.${m.id}`:''}`,{method:m.id?'PATCH':'POST',headers:{Prefer:'return=minimal'},body:JSON.stringify(data)})
     }
     else if(m.type==='supplier'){
